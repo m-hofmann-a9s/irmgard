@@ -62,7 +62,7 @@ Run remote image with version tag `0.3.0`:
 ### Submitting an Image
 
 ```bash
-curl -d '{"name": "test.jpg", "storage_location": "https://www.outbrain.com/techblog/wp-content/uploads/2017/05/road-sign-361513_960_720.jpg"}' -H "Content-Type: application/json" localhost:8080
+curl -F 'image=@/Users/jfischer/Downloads/000d8ea8207c6d7dae321da11083a312.jpg' localhost:8080
 ```
 
 ## Links

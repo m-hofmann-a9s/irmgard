@@ -6,6 +6,7 @@
 package main
 
 import (
+	"bufio"
 	"encoding/json"
 	"fmt"
 	"log"
@@ -123,25 +124,42 @@ func main() {
 	app.Handle("POST", "/", func(ctx iris.Context) {
 		var image Image
 
-		ctx.ReadJSON(&image)
+		// Receive the incoming file
+		// See also: https://github.com/kataras/iris/blob/c4843a4d82aae53518bb7c247923007d1d99893c/_examples/file-server/upload-file/main.go
+		file, info, err := ctx.FormFile("image")
 
-		// Upload the zip file
-		objectName := "golden-oldies.zip"
-		filePath := "/tmp/golden-oldies.zip"
+		if err != nil {
+			ctx.StatusCode(iris.StatusInternalServerError)
+			ctx.HTML("Fileupload: Error while uploading: " + err.Error() + "\n" + info.Filename)
+			return
+		}
+
+		defer file.Close()
+
+		// Upload the zip file to MinIO
+		objectName := info.Filename
+		fileName := info.Filename
 		contentType := "application/zip"
+		objectSize := info.Size
+		objectReader := bufio.NewReader(file)
+
+		fmt.Printf("Fileupload: Receiving file with path: " + fileName + "\n")
 
 		// Upload the zip file with FPutObject
-		n, err := minioClient.FPutObject(bucketName, objectName, filePath, minio.PutObjectOptions{ContentType: contentType})
+		n, err := minioClient.PutObject(bucketName, objectName, objectReader, objectSize, minio.PutObjectOptions{ContentType: contentType})
 		if err != nil {
 			log.Fatalln(err)
 		}
 
 		log.Printf("MinIO: Successfully uploaded %s of size %d\n", objectName, n)
 
+		image.Name = fileName
+		image.StorageLocation = bucketName + "/" + fileName
+
 		// Write to the DB
 		err = db.Insert(&image)
 		if err != nil {
-			ctx.Writef("Error: " + err.Error())
+			ctx.Writef("PG database error: " + err.Error())
 			return
 		}
 
