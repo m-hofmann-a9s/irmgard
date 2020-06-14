@@ -139,14 +139,14 @@ func main() {
 		// Upload the zip file to MinIO
 		objectName := info.Filename
 		fileName := info.Filename
-		contentType := "application/zip"
+
 		objectSize := info.Size
 		objectReader := bufio.NewReader(file)
 
 		fmt.Printf("Fileupload: Receiving file with path: " + fileName + "\n")
 
 		// Upload the zip file with FPutObject
-		n, err := minioClient.PutObject(bucketName, objectName, objectReader, objectSize, minio.PutObjectOptions{ContentType: contentType})
+		n, err := minioClient.PutObject(bucketName, objectName, objectReader, objectSize, minio.PutObjectOptions{})
 		if err != nil {
 			log.Fatalln(err)
 		}
