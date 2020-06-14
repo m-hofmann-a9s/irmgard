@@ -16,6 +16,7 @@ import (
 	"github.com/kataras/iris"
 	"github.com/kataras/iris/middleware/logger"
 	"github.com/kataras/iris/middleware/recover"
+	"github.com/minio/minio-go"
 	"github.com/streadway/amqp"
 )
 
@@ -37,6 +38,40 @@ func main() {
 	err := createSchema(db)
 	if err != nil {
 		panic(err)
+	}
+
+	// MinIO Object store
+	minioEndpoint := "localhost:9000"                                  // TODO make env variable
+	minioAccessKeyID := "AKIAIOSFODNN7EXAMPLE"                         // TODO make env variable
+	minioSecretAccessKey := "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" // TODO make env variable
+	minioUseSSL := false
+
+	// MinIO Make a new bucket called "images".
+	bucketName := "infiles" // TODO make env variable
+	location := "us-east-1" // Leave this to "us-east-1"
+
+	// Initialize minio client object.
+	minioClient, err := minio.New(minioEndpoint, minioAccessKeyID, minioSecretAccessKey, minioUseSSL)
+
+	if err != nil {
+		log.Fatalln(err)
+	}
+
+	// Make minIO bucket if not exists
+	err = minioClient.MakeBucket(bucketName, location)
+	if err != nil {
+
+		// Check if the bucket already exists (which happens if you run this twice)
+		exists, errBucketExists := minioClient.BucketExists(bucketName)
+
+		if errBucketExists == nil && exists {
+			log.Printf("MinIO: The bucket %s already exists \n", bucketName)
+		} else {
+			log.Fatalln(err)
+		}
+
+	} else {
+		log.Printf("MinIO: Successfully created the bucket %s\n", bucketName)
 	}
 
 	// RabbitMQ
@@ -87,7 +122,21 @@ func main() {
 
 	app.Handle("POST", "/", func(ctx iris.Context) {
 		var image Image
+
 		ctx.ReadJSON(&image)
+
+		// Upload the zip file
+		objectName := "golden-oldies.zip"
+		filePath := "/tmp/golden-oldies.zip"
+		contentType := "application/zip"
+
+		// Upload the zip file with FPutObject
+		n, err := minioClient.FPutObject(bucketName, objectName, filePath, minio.PutObjectOptions{ContentType: contentType})
+		if err != nil {
+			log.Fatalln(err)
+		}
+
+		log.Printf("MinIO: Successfully uploaded %s of size %d\n", objectName, n)
 
 		// Write to the DB
 		err = db.Insert(&image)
