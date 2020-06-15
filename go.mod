@@ -23,11 +23,11 @@ require (
 	github.com/klauspost/compress v1.10.8 // indirect
 	github.com/lib/pq v1.7.0
 	github.com/microcosm-cc/bluemonday v1.0.3 // indirect
-	github.com/minio/minio-go v6.0.14+incompatible // indirect
+	github.com/minio/minio-go v6.0.14+incompatible
 	github.com/mitchellh/go-homedir v1.1.0 // indirect
 	github.com/ryanuber/columnize v2.1.0+incompatible // indirect
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
-	github.com/streadway/amqp v1.0.0 // indirect
+	github.com/streadway/amqp v1.0.0
 	golang.org/x/crypto v0.0.0-20200604202706-70a84ac30bf9 // indirect
 	gopkg.in/yaml.v2 v2.3.0 // indirect
 	mellium.im/sasl v0.2.1 // indirect
