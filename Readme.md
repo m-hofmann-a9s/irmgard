@@ -5,7 +5,7 @@ A minimalistic example of an image processing web app accessing a PostgreSQL [1]
 This application is part of an exam for the free [anynines Kubernetes Training](https://learn.kubernetes.anynines.com/).
 
 This code contains refactoring challenges for the training participants.
-It implements the "happy path" only and this is rather fragile.
+It implements the "happy path" - there is little to no error handling - and thus is rather fragile.
 
 ## Go
 
