@@ -15,8 +15,8 @@ It implements the "happy path" - there is little to no error handling - and thus
 
 Assumptions:
 
-* RabbitMQ is available locally
-* PostgreSQL is available locally
+* RabbitMQ is available via local network
+* PostgreSQL is available via local network
 
 Assuming there is a PostgreSQL server running with a user `postgres` and an empty database `postgresl`:
 
