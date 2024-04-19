@@ -8,6 +8,7 @@ package main
 import (
 	"bufio"
 	"context"
+	"crypto/tls"
 	"encoding/json"
 	"fmt"
 	"os"
@@ -34,6 +35,9 @@ func main() {
 		User:     postgresUsername,
 		Password: postgresPassword,
 		Database: "irmgard", // TODO Make env variable
+		TLSConfig: &tls.Config{
+			InsecureSkipVerify: true,
+		},
 	})
 	defer db.Close()
 
