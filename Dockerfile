@@ -1,13 +1,21 @@
-FROM golang:1.14
+FROM golang:1.22-alpine as builder
 
-WORKDIR /go/src/app
+ENV APP_HOME /go/src/irmgard
+WORKDIR $APP_HOME
 
 COPY . .
 
-RUN go get -d -v github.com/minio/minio-go/v6
-RUN go get -d -v github.com/go-pg/pg/v10
-RUN go get -d -v github.com/streadway/amqp
+RUN go mod download
+RUN go mod verify
+RUN go build -o irmgard
 
-RUN go install -v main.go
+FROM alpine:3.19
 
-CMD ["main"]
+ENV APP_HOME /go/src/irmgard
+RUN mkdir -p "$APP_HOME"
+WORKDIR $APP_HOME
+
+COPY --from=builder $APP_HOME/irmgard $APP_HOME
+
+EXPOSE 8080
+CMD ["./irmgard"]
