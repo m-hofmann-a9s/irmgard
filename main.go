@@ -176,7 +176,8 @@ func main() {
 		}
 
 		// Write to the message queue
-		err = ch.Publish(
+		err = ch.PublishWithContext(
+			ctx,
 			"",     // exchange
 			q.Name, // routing key
 			false,  // mandatory
