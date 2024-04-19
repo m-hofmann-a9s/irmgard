@@ -7,7 +7,7 @@ COPY . .
 
 RUN go mod download
 RUN go mod verify
-RUN go build -o irmgard
+RUN go build -ldflags="-s -w" -o irmgard
 
 FROM alpine:3.19
 
