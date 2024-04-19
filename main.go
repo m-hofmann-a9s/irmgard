@@ -7,22 +7,23 @@ package main
 
 import (
 	"bufio"
+	"context"
 	"encoding/json"
 	"fmt"
-	"log"
 	"os"
 
-	"github.com/go-pg/pg"
-	"github.com/go-pg/pg/orm"
-	"github.com/kataras/iris"
-	"github.com/kataras/iris/middleware/logger"
-	"github.com/kataras/iris/middleware/recover"
-	"github.com/minio/minio-go"
-	"github.com/streadway/amqp"
+	"github.com/go-pg/pg/v10"
+	"github.com/go-pg/pg/v10/orm"
+	"github.com/kataras/iris/v12"
+	"github.com/kataras/iris/v12/middleware/logger"
+	"github.com/kataras/iris/v12/middleware/recover"
+	"github.com/minio/minio-go/v7"
+	"github.com/minio/minio-go/v7/pkg/credentials"
+	amqp "github.com/rabbitmq/amqp091-go"
+	"github.com/rs/zerolog/log"
 )
 
 func main() {
-
 	// Database
 	postgresUsername := os.Getenv("POSTGRES_USERNAME")
 	postgresPassword := os.Getenv("POSTGRES_PASSWORD")
@@ -32,51 +33,57 @@ func main() {
 		Addr:     postgresHost + ":5432", // TODO make env variable
 		User:     postgresUsername,
 		Password: postgresPassword,
-		Database: "postgres", // TODO Make env variable
+		Database: "irmgard", // TODO Make env variable
 	})
 	defer db.Close()
 
 	err := createSchema(db)
 	if err != nil {
-		panic(err)
+		log.Panic().Err(err).Msg("Failed to set up schema")
 	}
 
+	// root access 3M6UKuqGJrFxt97i
+	// root secret GHJtCCEMyuurPkHk9F0CHVeiRmSMgQU2
 	// MinIO Object store
-	minioEndpoint := "localhost:9000"                                  // TODO make env variable
-	minioAccessKeyID := "AKIAIOSFODNN7EXAMPLE"                         // TODO make env variable
-	minioSecretAccessKey := "wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY" // TODO make env variable
+	minioEndpoint := os.Getenv("S3_ENDPOINT")
+	minioAccessKeyID := os.Getenv("S3_ACCESSKEY")
+	minioSecretAccessKey := os.Getenv("S3_SECRET")
 	minioUseSSL := false
 
 	// MinIO Make a new bucket called "images".
-	bucketName := "infiles" // TODO make env variable
-	location := "us-east-1" // Leave this to "us-east-1"
+	bucketName := "images" // TODO make env variable
 
 	// Initialize minio client object.
-	minioClient, err := minio.New(minioEndpoint, minioAccessKeyID, minioSecretAccessKey, minioUseSSL)
+	minioClient, err := minio.New(minioEndpoint, &minio.Options{
+		Creds:  credentials.NewStaticV4(minioAccessKeyID, minioSecretAccessKey, ""),
+		Secure: minioUseSSL,
+	})
 
 	if err != nil {
-		log.Fatalln(err)
+		log.Fatal().Err(err).Msg("could not connect to minio")
 	}
+	buckets, err := minioClient.ListBuckets(context.Background())
+	fmt.Println("Buckets", buckets)
 
 	// Make minIO bucket if not exists
-	err = minioClient.MakeBucket(bucketName, location)
+	err = minioClient.MakeBucket(context.Background(), bucketName, minio.MakeBucketOptions{})
 	if err != nil {
 
 		// Check if the bucket already exists (which happens if you run this twice)
-		exists, errBucketExists := minioClient.BucketExists(bucketName)
+		exists, errBucketExists := minioClient.BucketExists(context.Background(), bucketName)
 
 		if errBucketExists == nil && exists {
-			log.Printf("MinIO: The bucket %s already exists \n", bucketName)
+			log.Printf("MinIO: The bucket %s already existsn", bucketName)
 		} else {
-			log.Fatalln(err)
+			log.Fatal().Err(err).Msg("could not check bucket status")
 		}
 
 	} else {
-		log.Printf("MinIO: Successfully created the bucket %s\n", bucketName)
+		log.Printf("MinIO: Successfully created the bucket %s", bucketName)
 	}
 
 	// RabbitMQ
-	conn, err := amqp.Dial("amqp://guest:guest@localhost:5672/") // TODO Make username, password, host and port configurable using ENV variables.
+	conn, err := amqp.Dial(fmt.Sprintf("amqp://%s:%s@%s/", os.Getenv("MQ_USERNAME"), os.Getenv("MQ_PASSWORD"), os.Getenv("MQ_ENDPOINT")))
 	failOnError(err, "Failed to connect to RabbitMQ")
 	defer conn.Close()
 
@@ -146,9 +153,9 @@ func main() {
 		fmt.Printf("Fileupload: Receiving file with path: " + fileName + "\n")
 
 		// Upload the zip file with FPutObject
-		n, err := minioClient.PutObject(bucketName, objectName, objectReader, objectSize, minio.PutObjectOptions{})
+		n, err := minioClient.PutObject(context.Background(), bucketName, objectName, objectReader, objectSize, minio.PutObjectOptions{})
 		if err != nil {
-			log.Fatalln(err)
+			log.Fatal().Err(err).Msg("failed to put object to s3")
 		}
 
 		log.Printf("MinIO: Successfully uploaded %s of size %d\n", objectName, n)
@@ -157,7 +164,7 @@ func main() {
 		image.StorageLocation = bucketName + "/" + fileName
 
 		// Write to the DB
-		err = db.Insert(&image)
+		_, err = db.Model(&image).Insert()
 		if err != nil {
 			ctx.Writef("PG database error: " + err.Error())
 			return
@@ -184,7 +191,7 @@ func main() {
 		ctx.Writef("Success: %s %s", image.Name, image.StorageLocation)
 	})
 
-	app.Run(iris.Addr(":8080"), iris.WithoutServerError(iris.ErrServerClosed))
+	app.Run(iris.Addr("localhost:8080"), iris.WithoutServerError(iris.ErrServerClosed))
 }
 
 func getIndex(ctx iris.Context) {
@@ -208,7 +215,7 @@ func createSchema(db *pg.DB) error {
 	}
 
 	for _, model := range models {
-		err := db.CreateTable(model, &orm.CreateTableOptions{IfNotExists: true})
+		err := db.Model(model).CreateTable(&orm.CreateTableOptions{IfNotExists: true})
 		if err != nil {
 			return err
 		}
@@ -219,6 +226,6 @@ func createSchema(db *pg.DB) error {
 
 func failOnError(err error, msg string) {
 	if err != nil {
-		log.Fatalf("%s: %s", msg, err)
+		log.Fatal().Err(err).Msg(msg)
 	}
 }
