@@ -1,0 +1,22 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: irmgard-webserver
+  namespace: irmgard
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: irmgard-webserver
+  replicas: 2
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: irmgard-webserver
+    spec:
+      containers:
+        - name: webserver
+          image: docker.io/hofmanna9s/irmgard:0.0.1
+          imagePullPolicy: Always
+          envFrom:
+            - secretRef:
+                name: irmgard-webserver
